@@ -7660,12 +7660,8 @@ export default function App({
                 conversationId: conversationIdRef.current,
                 // Callback to stream remote/controller events to the local TUI
                 onLocalTuiStream: (delta, scope) => {
-                  // Debug: log what we're receiving
-                  console.log("[onLocalTuiStream] Received delta:", JSON.stringify(delta, null, 2).substring(0, 500));
-                  
                   // Skip if delta doesn't have message_type (malformed)
                   if (!delta || typeof delta !== "object" || !("message_type" in delta)) {
-                    console.log("[onLocalTuiStream] Skipping - no message_type");
                     return;
                   }
                   
