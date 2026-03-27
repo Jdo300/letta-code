@@ -7703,8 +7703,9 @@ export default function App({
                   
                   // Update buffers with the stream delta
                   onChunk(buffersRef.current, delta as Parameters<typeof onChunk>[1]);
-                  // Force immediate refresh for listener (throttled version has checks that may block)
-                  refreshDerived();
+                  // Clear interrupted flag for listener streaming (ensures refreshDerivedThrottled works)
+                  buffersRef.current.interrupted = false;
+                  refreshDerivedThrottled();
                 },
               },
               msg,
