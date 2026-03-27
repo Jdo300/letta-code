@@ -753,6 +753,7 @@ export function onChunk(
       // Resolve to a stable line id across mixed streams where some chunks
       // have only id, only otid, or both.
       const id = resolveAssistantLineId(b, chunkWithIds);
+      console.log(`[onChunk assistant_message] id=${id}, content=${JSON.stringify(chunk.content).substring(0, 50)}`);
       if (!id) break;
 
       // Handle otid transition (mark previous line as finished)
