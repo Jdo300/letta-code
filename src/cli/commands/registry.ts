@@ -2,6 +2,7 @@
 // Registry of available CLI commands
 
 import { handleSecretCommand } from "./secret";
+import { handleLocalServer } from "./local-server";
 
 type CommandHandler = (args: string[]) => Promise<string> | string;
 
@@ -242,6 +243,23 @@ export const commands: Record<string, Command> = {
     handler: () => {
       // Handled specially in App.tsx to access agent ID and open browser
       return "Opening ADE...";
+    },
+  },
+
+  "/local-server": {
+    desc: "Start local TCP server for agent communication (/local-server [--port] [off])",
+    args: "[--port <port>] [off]",
+    order: 29,
+    handler: async (args: string[]) => {
+      const opts: { port?: number } = {};
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === "--port" && i + 1 < args.length) {
+          opts.port = parseInt(args[i + 1]!, 10);
+          i++;
+        }
+      }
+      const msg = args.includes("off") || args.includes("stop") ? "/local-server off" : "/local-server";
+      return handleLocalServer(msg, opts);
     },
   },
 

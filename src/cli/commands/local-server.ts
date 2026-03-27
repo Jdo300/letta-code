@@ -1,0 +1,298 @@
+/**
+ * Local Server - Open a TCP socket for local agent-to-agent communication
+ * Usage: /local-server [--port 9876]
+ *
+ * This creates a simple TCP server that:
+ * 1. Accepts connections from local clients (like a skill)
+ * 2. Receives text commands and processes them as user input
+ * 3. Sends output back to connected clients
+ */
+
+import * as net from "node:net";
+import { hostname } from "node:os";
+
+interface LocalServerOptions {
+  port?: number;
+}
+
+// Active server state
+let activeServer: net.Server | null = null;
+let activePort: number | null = null;
+let connectedClients: Set<net.Socket> = new Set();
+
+// Output buffer for clients to read
+let outputBuffer: string[] = [];
+const MAX_BUFFER_LINES = 1000;
+
+// Callback to process incoming messages
+let messageHandler: ((message: string) => Promise<void>) | null = null;
+
+/**
+ * Register a callback to handle incoming messages
+ */
+export function setMessageHandler(handler: (message: string) => Promise<void>): void {
+  messageHandler = handler;
+}
+
+/**
+ * Add output to the buffer (called when agent sends messages)
+ */
+export function appendOutput(line: string, isNotification = false): void {
+  const timestamp = new Date().toISOString();
+  const prefix = isNotification ? "[NOTIFY]" : "[OUTPUT]";
+  const formattedLine = `${timestamp} ${prefix} ${line}`;
+
+  outputBuffer.push(formattedLine);
+
+  // Trim buffer if too large
+  if (outputBuffer.length > MAX_BUFFER_LINES) {
+    outputBuffer = outputBuffer.slice(-MAX_BUFFER_LINES);
+  }
+
+  // Send to all connected clients
+  const message = formattedLine + "\n";
+  for (const client of connectedClients) {
+    try {
+      client.write(message);
+    } catch {
+      // Client might have disconnected
+      connectedClients.delete(client);
+    }
+  }
+}
+
+/**
+ * Get the current output buffer
+ */
+export function getOutputBuffer(lines?: number): string[] {
+  if (lines === undefined) {
+    return [...outputBuffer];
+  }
+  return outputBuffer.slice(-lines);
+}
+
+/**
+ * Check if the local server is active
+ */
+export function isLocalServerActive(): boolean {
+  return activeServer !== null;
+}
+
+/**
+ * Get the active port
+ */
+export function getActivePort(): number | null {
+  return activePort;
+}
+
+/**
+ * Handle a client connection
+ */
+function handleClient(socket: net.Socket): void {
+  connectedClients.add(socket);
+
+  const clientAddr = `${socket.remoteAddress}:${socket.remotePort}`;
+  console.log(`[local-server] Client connected: ${clientAddr}`);
+
+  // Send welcome message
+  socket.write(`Connected to Letta Code local server on ${hostname()}:${activePort}\n`);
+  socket.write(`Buffer has ${outputBuffer.length} lines. Send commands as plain text.\n`);
+  socket.write(`Special commands: READ, READ <n>, STATUS, EXIT\n`);
+
+  let inputBuffer = "";
+
+  socket.on("data", async (data) => {
+    inputBuffer += data.toString();
+
+    // Process complete lines
+    const lines = inputBuffer.split("\n");
+    inputBuffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Handle special commands
+      if (trimmed.toUpperCase() === "READ") {
+        // Send last 50 lines
+        const recent = outputBuffer.slice(-50);
+        socket.write(`=== BUFFER (${recent.length} lines) ===\n`);
+        socket.write(recent.join("\n") + "\n");
+        socket.write(`=== END BUFFER ===\n`);
+        continue;
+      }
+
+      if (trimmed.toUpperCase().startsWith("READ ")) {
+        const count = parseInt(trimmed.slice(5), 10);
+        if (!isNaN(count) && count > 0) {
+          const recent = outputBuffer.slice(-count);
+          socket.write(`=== BUFFER (${recent.length} lines) ===\n`);
+          socket.write(recent.join("\n") + "\n");
+          socket.write(`=== END BUFFER ===\n`);
+        } else {
+          socket.write(`Invalid READ command. Usage: READ <n>\n`);
+        }
+        continue;
+      }
+
+      if (trimmed.toUpperCase() === "STATUS") {
+        socket.write(`Server: ${hostname()}:${activePort}\n`);
+        socket.write(`Connected clients: ${connectedClients.size}\n`);
+        socket.write(`Buffer lines: ${outputBuffer.length}\n`);
+        continue;
+      }
+
+      if (trimmed.toUpperCase() === "EXIT") {
+        socket.write("Goodbye!\n");
+        socket.end();
+        continue;
+      }
+
+      // Regular message - pass to handler
+      if (messageHandler) {
+        try {
+          socket.write(`[ACK] Processing: ${trimmed.substring(0, 50)}...\n`);
+          await messageHandler(trimmed);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          socket.write(`[ERROR] ${errorMsg}\n`);
+        }
+      } else {
+        socket.write(`[ERROR] No message handler registered\n`);
+      }
+    }
+  });
+
+  socket.on("close", () => {
+    connectedClients.delete(socket);
+    console.log(`[local-server] Client disconnected: ${clientAddr}`);
+  });
+
+  socket.on("error", (err) => {
+    connectedClients.delete(socket);
+    console.log(`[local-server] Client error: ${err.message}`);
+  });
+}
+
+/**
+ * Start the local server
+ */
+export async function startLocalServer(
+  opts: LocalServerOptions = {},
+  onStatusChange?: (status: "started" | "stopped" | "error", port?: number, error?: string) => void,
+): Promise<{ success: boolean; port?: number; error?: string }> {
+  if (activeServer) {
+    return { success: false, error: "Server already running" };
+  }
+
+  const port = opts.port || 9876;
+
+  return new Promise((resolve) => {
+    const server = net.createServer(handleClient);
+
+    server.on("error", (err) => {
+      activeServer = null;
+      onStatusChange?.("error", undefined, err.message);
+      resolve({ success: false, error: err.message });
+    });
+
+    server.listen(port, () => {
+      activeServer = server;
+      activePort = port;
+      onStatusChange?.("started", port);
+      console.log(`[local-server] Started on port ${port}`);
+      resolve({ success: true, port });
+    });
+  });
+}
+
+/**
+ * Stop the local server
+ */
+export async function stopLocalServer(): Promise<void> {
+  if (!activeServer) return;
+
+  // Close all clients
+  for (const client of connectedClients) {
+    client.destroy();
+  }
+  connectedClients.clear();
+
+  // Close server
+  await new Promise<void>((resolve) => {
+    activeServer!.close(() => {
+      resolve();
+    });
+  });
+
+  activeServer = null;
+  activePort = null;
+  console.log(`[local-server] Stopped`);
+}
+
+/**
+ * Handle /local-server command
+ */
+export async function handleLocalServer(
+  msg: string,
+  opts: LocalServerOptions = {},
+): Promise<string> {
+  const trimmed = msg.trim();
+
+  // Handle /local-server off
+  if (trimmed === "/local-server off" || trimmed === "/local off") {
+    if (!isLocalServerActive()) {
+      return "Local server is not running.";
+    }
+    await stopLocalServer();
+    return "Local server stopped.";
+  }
+
+  // Show help
+  if (trimmed.includes("--help") || trimmed.includes("-h")) {
+    return [
+      "Usage: /local-server [--port <port>]",
+      "       /local-server off",
+      "",
+      "Start a local TCP server for agent-to-agent communication.",
+      "",
+      "Options:",
+      "  --port <port>  Port to listen on (default: 9876)",
+      "  off            Stop the server",
+      "  -h, --help     Show this help",
+      "",
+      "Once started, you can connect with:",
+      "  nc localhost 9876",
+      "  telnet localhost 9876",
+      "",
+      "Commands:",
+      "  READ        - Get last 50 lines from buffer",
+      "  READ <n>    - Get last n lines from buffer",
+      "  STATUS      - Show server status",
+      "  EXIT        - Disconnect",
+      "",
+      "Any other text is sent as a message to the agent.",
+    ].join("\n");
+  }
+
+  // Start server
+  if (isLocalServerActive()) {
+    return `Local server already running on port ${activePort}.`;
+  }
+
+  const result = await startLocalServer(opts);
+  if (result.success) {
+    return [
+      `Local server started on port ${result.port}`,
+      "",
+      `Connect with:`,
+      `  nc localhost ${result.port}`,
+      `  telnet localhost ${result.port}`,
+      "",
+      `Send text to process as user input.`,
+      `Use READ to get output buffer.`,
+    ].join("\n");
+  } else {
+    return `Failed to start local server: ${result.error}`;
+  }
+}
