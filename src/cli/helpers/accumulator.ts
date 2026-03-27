@@ -766,6 +766,7 @@ export function onChunk(
         text: "",
         phase: "streaming",
       }));
+      console.log(`[onChunk assistant_message] delta="${delta}", line.text="${line.text.substring(0, 50)}", order.length=${b.order.length}`);
       if (delta) {
         const newText = line.text + delta;
         b.tokenCount += delta.length;
