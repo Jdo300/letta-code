@@ -2801,8 +2801,10 @@ export default function App({
   // Recompute UI state from buffers after each streaming chunk
   const refreshDerived = useCallback(() => {
     const b = buffersRef.current;
+    console.log(`[refreshDerived] called, order.length=${b.order.length}, byId.size=${b.byId.size}`);
     setTokenCount(b.tokenCount);
     const newLines = toLines(b);
+    console.log(`[refreshDerived] newLines.length=${newLines.length}`);
     setLines(newLines);
     commitEligibleLines(b);
   }, [commitEligibleLines]);
@@ -7660,6 +7662,7 @@ export default function App({
                 conversationId: conversationIdRef.current,
                 // Callback to stream remote/controller events to the local TUI
                 onLocalTuiStream: (delta, scope) => {
+                  console.log(`[onLocalTuiStream] message_type=${(delta as any)?.message_type}`);
                   // Skip if delta doesn't have message_type (malformed)
                   if (!delta || typeof delta !== "object" || !("message_type" in delta)) {
                     return;
@@ -7703,6 +7706,7 @@ export default function App({
                   
                   // Update buffers with the stream delta
                   onChunk(buffersRef.current, delta as Parameters<typeof onChunk>[1]);
+                  console.log(`[onLocalTuiStream] after onChunk, order.length=${buffersRef.current.order.length}`);
                   // Clear interrupted flag for listener streaming (ensures refreshDerivedThrottled works)
                   buffersRef.current.interrupted = false;
                   refreshDerivedThrottled();
