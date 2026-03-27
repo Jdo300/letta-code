@@ -1084,11 +1084,15 @@ async function connectWithRetry(
     }
 
     if (parsed.type === "sync") {
-      console.log(
-        `[Listen V2] Received sync command for runtime=${parsed.runtime.agent_id}/${parsed.runtime.conversation_id}`,
-      );
+      if (isDebugEnabled()) {
+        console.log(
+          `[Listen V2] Received sync command for runtime=${parsed.runtime.agent_id}/${parsed.runtime.conversation_id}`,
+        );
+      }
       if (runtime !== getActiveRuntime() || runtime.intentionallyClosed) {
-        console.log(`[Listen V2] Dropping sync: runtime mismatch or closed`);
+        if (isDebugEnabled()) {
+          console.log(`[Listen V2] Dropping sync: runtime mismatch or closed`);
+        }
         return;
       }
       const syncScopedRuntime = getOrCreateScopedRuntime(
@@ -1103,11 +1107,15 @@ async function connectWithRetry(
     }
 
     if (parsed.type === "input") {
-      console.log(
-        `[Listen V2] Received input command, kind=${parsed.payload?.kind}`,
-      );
+      if (isDebugEnabled()) {
+        console.log(
+          `[Listen V2] Received input command, kind=${parsed.payload?.kind}`,
+        );
+      }
       if (runtime !== getActiveRuntime() || runtime.intentionallyClosed) {
-        console.log(`[Listen V2] Dropping input: runtime mismatch or closed`);
+        if (isDebugEnabled()) {
+          console.log(`[Listen V2] Dropping input: runtime mismatch or closed`);
+        }
         return;
       }
 

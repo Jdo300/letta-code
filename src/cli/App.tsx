@@ -7664,6 +7664,43 @@ export default function App({
                   if (!delta || typeof delta !== "object" || !("message_type" in delta)) {
                     return;
                   }
+                  
+                  // Handle user_message specially - add as a user line, not via onChunk
+                  // (onChunk ignores user messages that aren't compaction summaries)
+                  if (delta.message_type === "user_message") {
+                    const userDelta = delta as { content?: unknown; otid?: string; id?: string };
+                    // Extract text content from the user message
+                    let textContent: string | null = null;
+                    if (typeof userDelta.content === "string") {
+                      textContent = userDelta.content;
+                    } else if (Array.isArray(userDelta.content)) {
+                      // Extract text from content parts
+                      const textParts = userDelta.content
+                        .filter((part): part is { type: "text"; text: string } => 
+                          part && typeof part === "object" && "type" in part && part.type === "text" && "text" in part && typeof part.text === "string"
+                        )
+                        .map((part) => part.text);
+                      if (textParts.length > 0) {
+                        textContent = textParts.join("\n");
+                      }
+                    }
+                    
+                    if (textContent) {
+                      const userId = userDelta.otid || userDelta.id || uid("user");
+                      // Only add if not already present
+                      if (!buffersRef.current.byId.has(userId)) {
+                        buffersRef.current.byId.set(userId, {
+                          kind: "user",
+                          id: userId,
+                          text: textContent,
+                        });
+                        buffersRef.current.order.push(userId);
+                        refreshDerived();
+                      }
+                    }
+                    return;
+                  }
+                  
                   // Update buffers with the stream delta
                   onChunk(buffersRef.current, delta as Parameters<typeof onChunk>[1]);
                   // Schedule a refresh to update the UI

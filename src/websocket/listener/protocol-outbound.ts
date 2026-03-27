@@ -24,6 +24,7 @@ import type {
   SubagentStateUpdateMessage,
   WsProtocolMessage,
 } from "../../types/protocol_v2";
+import { isDebugEnabled } from "../../utils/debug";
 import { SYSTEM_REMINDER_RE } from "./constants";
 import { getConversationWorkingDirectory } from "./cwd";
 import { getConversationPermissionModeState } from "./permissionMode";
@@ -292,7 +293,9 @@ export function emitProtocolV2Message(
     });
     return;
   }
-  console.log(`[Listen V2] Emitting ${message.type} (seq=${eventSeq})`);
+  if (isDebugEnabled()) {
+    console.log(`[Listen V2] Emitting ${message.type} (seq=${eventSeq})`);
+  }
   safeEmitWsEvent("send", "protocol", outbound);
 }
 
