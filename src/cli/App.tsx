@@ -7703,8 +7703,8 @@ export default function App({
                   
                   // Update buffers with the stream delta
                   onChunk(buffersRef.current, delta as Parameters<typeof onChunk>[1]);
-                  // Use the throttled refresh for smooth real-time UI updates (~60fps)
-                  refreshDerivedThrottled();
+                  // Force immediate refresh for listener (throttled version has checks that may block)
+                  refreshDerived();
                 },
               },
               msg,
