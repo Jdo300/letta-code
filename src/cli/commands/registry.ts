@@ -147,15 +147,24 @@ export const commands: Record<string, Command> = {
       return "Opening provider connection...";
     },
   },
-  // "/remote": {
-  //   desc: "Connect to Letta Cloud (device connect mode)",
-  //   args: "[--env-name <name>]",
-  //   order: 17.5,
-  //   handler: () => {
-  //     // Handled specially in App.tsx
-  //     return "Starting listener...";
-  //   },
-  // },
+  "/server": {
+    desc: "Start listener mode (visible console - stream remote messages in TUI)",
+    args: "[--env-name <name>]",
+    order: 17.5,
+    handler: () => {
+      // Handled specially in App.tsx
+      return "Starting listener...";
+    },
+  },
+  "/remote": {
+    desc: "Alias for /server (start listener mode)",
+    args: "[--env-name <name>]",
+    order: 17.6,
+    handler: () => {
+      // Handled specially in App.tsx
+      return "Starting listener...";
+    },
+  },
   "/clear": {
     desc: "Clear in-context messages",
     order: 18,

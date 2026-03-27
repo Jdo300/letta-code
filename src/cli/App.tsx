@@ -581,6 +581,8 @@ const NON_STATE_COMMANDS = new Set([
   "/statusline",
   "/reasoning-tab",
   "/secret",
+  "/server",
+  "/remote",
 ]);
 
 // Check if a command is interactive (opens overlay, should not be queued)
@@ -7656,6 +7658,25 @@ export default function App({
                 setCommandRunning,
                 agentId,
                 conversationId: conversationIdRef.current,
+                // Callback to stream remote/controller events to the local TUI
+                onLocalTuiStream: (delta, scope) => {
+                  // Skip if delta doesn't have message_type (malformed)
+                  if (!delta || typeof delta !== "object" || !("message_type" in delta)) {
+                    return;
+                  }
+                  // Update buffers with the stream delta
+                  onChunk(buffersRef.current, delta as Parameters<typeof onChunk>[1]);
+                  // Schedule a refresh to update the UI
+                  if (!buffersRef.current.pendingRefresh) {
+                    buffersRef.current.pendingRefresh = true;
+                    setTimeout(() => {
+                      buffersRef.current.pendingRefresh = false;
+                      if (!buffersRef.current.interrupted) {
+                        refreshDerived();
+                      }
+                    }, 50);
+                  }
+                },
               },
               msg,
               { envName: name },

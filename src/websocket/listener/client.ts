@@ -793,6 +793,7 @@ function createRuntime(): ListenerRuntime {
     queueEmitScheduled: false,
     pendingQueueEmitScope: undefined,
     onWsEvent: undefined,
+    onLocalTuiStream: undefined,
     reminderState: createSharedReminderState(),
     bootWorkingDirectory,
     workingDirectoryByConversation: loadPersistedCwdMap(),
@@ -860,6 +861,7 @@ export async function startListenerClient(
 
   const runtime = createRuntime();
   runtime.onWsEvent = opts.onWsEvent;
+  runtime.onLocalTuiStream = opts.onLocalTuiStream;
   runtime.connectionId = opts.connectionId;
   runtime.connectionName = opts.connectionName;
   setActiveRuntime(runtime);
@@ -1905,6 +1907,7 @@ export const __listenClientTestUtils = {
   emitInterruptToolReturnMessage,
   emitInterruptedStatusDelta,
   emitRetryDelta,
+  emitLoopErrorDelta,
   getInterruptApprovalsForEmission,
   normalizeToolReturnWireMessage,
   normalizeExecutionResultsForInterruptParity,

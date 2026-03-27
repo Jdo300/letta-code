@@ -16,6 +16,7 @@ import type {
   ControlRequest,
   LoopStatus,
   RuntimeScope,
+  StreamDelta,
   WsProtocolCommand,
 } from "../../types/protocol_v2";
 
@@ -42,6 +43,15 @@ export interface StartListenerOptions {
     direction: "send" | "recv",
     label: "client" | "protocol" | "control" | "lifecycle",
     event: unknown,
+  ) => void;
+  /**
+   * Callback to stream events to the local TUI.
+   * When provided, this is called with StreamDelta events (user messages, assistant responses, etc.)
+   * to make remote/controller messages visible in the local transcript.
+   */
+  onLocalTuiStream?: (
+    delta: StreamDelta,
+    scope?: { agent_id?: string | null; conversation_id?: string | null },
   ) => void;
 }
 
@@ -148,6 +158,8 @@ export type ListenerRuntime = {
     conversation_id?: string | null;
   };
   onWsEvent?: StartListenerOptions["onWsEvent"];
+  /** Callback to stream events to the local TUI. */
+  onLocalTuiStream?: StartListenerOptions["onLocalTuiStream"];
   reminderState: SharedReminderState;
   bootWorkingDirectory: string;
   workingDirectoryByConversation: Map<string, string>;

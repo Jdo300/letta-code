@@ -1849,3 +1849,126 @@ describe("listen-client tool_return wire normalization", () => {
     expect(normalized).toBeNull();
   });
 });
+
+describe("listen-client onLocalTuiStream callback", () => {
+  test("emitRetryDelta calls onLocalTuiStream when registered", () => {
+    const listener = __listenClientTestUtils.createListenerRuntime();
+    const socket = new MockSocket(WebSocket.OPEN);
+    listener.socket = socket as unknown as WebSocket;
+    const receivedDeltas: Array<{
+      delta: unknown;
+      scope: unknown;
+    }> = [];
+    listener.onLocalTuiStream = (delta, scope) => {
+      receivedDeltas.push({ delta, scope });
+    };
+
+    __listenClientTestUtils.emitRetryDelta(
+      socket as unknown as WebSocket,
+      listener,
+      {
+        message: "Retrying...",
+        reason: "llm_api_error",
+        attempt: 1,
+        maxAttempts: 3,
+        delayMs: 1000,
+        agentId: "agent-1",
+        conversationId: "conv-1",
+      },
+    );
+
+    expect(receivedDeltas).toHaveLength(1);
+    expect(receivedDeltas[0]?.delta).toMatchObject({
+      message_type: "retry",
+      message: "Retrying...",
+      attempt: 1,
+      max_attempts: 3,
+    });
+    expect(receivedDeltas[0]?.scope).toEqual({
+      agent_id: "agent-1",
+      conversation_id: "conv-1",
+    });
+  });
+
+  test("emitLoopErrorDelta calls onLocalTuiStream when registered", () => {
+    const listener = __listenClientTestUtils.createListenerRuntime();
+    const socket = new MockSocket(WebSocket.OPEN);
+    listener.socket = socket as unknown as WebSocket;
+    const receivedDeltas: Array<{
+      delta: unknown;
+      scope: unknown;
+    }> = [];
+    listener.onLocalTuiStream = (delta, scope) => {
+      receivedDeltas.push({ delta, scope });
+    };
+
+    __listenClientTestUtils.emitLoopErrorDelta(socket as unknown as WebSocket, listener, {
+      message: "Something went wrong",
+      stopReason: "error",
+      isTerminal: true,
+      agentId: "agent-1",
+      conversationId: "conv-1",
+    });
+
+    expect(receivedDeltas).toHaveLength(1);
+    expect(receivedDeltas[0]?.delta).toMatchObject({
+      message_type: "loop_error",
+      message: "Something went wrong",
+      stop_reason: "error",
+      is_terminal: true,
+    });
+    expect(receivedDeltas[0]?.scope).toEqual({
+      agent_id: "agent-1",
+      conversation_id: "conv-1",
+    });
+  });
+
+  test("emitInterruptedStatusDelta calls onLocalTuiStream when registered", () => {
+    const listener = __listenClientTestUtils.createListenerRuntime();
+    const socket = new MockSocket(WebSocket.OPEN);
+    listener.socket = socket as unknown as WebSocket;
+    const receivedDeltas: Array<{
+      delta: unknown;
+      scope: unknown;
+    }> = [];
+    listener.onLocalTuiStream = (delta, scope) => {
+      receivedDeltas.push({ delta, scope });
+    };
+
+    emitInterruptedStatusDelta(socket as unknown as WebSocket, listener, {
+      runId: "run-1",
+      agentId: "agent-1",
+      conversationId: "conv-1",
+    });
+
+    expect(receivedDeltas).toHaveLength(1);
+    expect(receivedDeltas[0]?.delta).toMatchObject({
+      message_type: "status",
+      message: "Interrupted",
+      level: "warning",
+    });
+  });
+
+  test("does not throw when onLocalTuiStream is not registered", () => {
+    const listener = __listenClientTestUtils.createListenerRuntime();
+    const socket = new MockSocket(WebSocket.OPEN);
+    listener.socket = socket as unknown as WebSocket;
+    // No onLocalTuiStream registered
+
+    expect(() =>
+      __listenClientTestUtils.emitRetryDelta(
+        socket as unknown as WebSocket,
+        listener,
+        {
+          message: "Retrying...",
+          reason: "llm_api_error",
+          attempt: 1,
+          maxAttempts: 3,
+          delayMs: 1000,
+          agentId: "agent-1",
+          conversationId: "conv-1",
+        },
+      ),
+    ).not.toThrow();
+  });
+});

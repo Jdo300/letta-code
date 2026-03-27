@@ -4,8 +4,12 @@
  */
 
 import { hostname } from "node:os";
+import type { LettaStreamingResponse } from "@letta-ai/letta-client/resources/agents/messages";
 import { getServerUrl } from "../../agent/client";
+import type { ContextTracker } from "../../cli/helpers/contextTracker";
+import { onChunk } from "../../cli/helpers/accumulator";
 import { settingsManager } from "../../settings-manager";
+import type { RuntimeScope, StreamDelta } from "../../types/protocol_v2";
 import { getErrorMessage } from "../../utils/error";
 import { registerWithCloud } from "../../websocket/listen-register";
 import type { Buffers, Line } from "../helpers/accumulator";
@@ -32,6 +36,14 @@ export interface ListenCommandContext {
   setCommandRunning: (running: boolean) => void;
   agentId: string | null;
   conversationId: string | null;
+  /**
+   * Optional callback to stream events to the local TUI.
+   * When provided, remote/controller messages will be visible in the local transcript.
+   */
+  onLocalTuiStream?: (
+    delta: StreamDelta,
+    scope?: { agent_id?: string | null; conversation_id?: string | null },
+  ) => void;
 }
 
 // Helper to add a command result to buffers
@@ -374,6 +386,8 @@ export async function handleListen(
           );
           ctx.setCommandRunning(false);
         },
+        // Pass through the local TUI stream callback
+        onLocalTuiStream: ctx.onLocalTuiStream,
       });
     };
 

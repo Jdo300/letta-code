@@ -430,22 +430,25 @@ export function emitDequeuedUserMessage(
 
   const otid = firstUserPayload.client_message_id ?? batch.batchId;
 
-  emitCanonicalMessageDelta(
-    socket,
-    runtime,
-    {
-      type: "message",
-      id: `user-msg-${crypto.randomUUID()}`,
-      date: new Date().toISOString(),
-      message_type: "user_message",
-      content,
-      otid,
-    } as StreamDelta,
-    {
-      agent_id: incoming.agentId,
-      conversation_id: incoming.conversationId,
-    },
-  );
+  const delta: StreamDelta = {
+    type: "message",
+    id: `user-msg-${crypto.randomUUID()}`,
+    date: new Date().toISOString(),
+    message_type: "user_message",
+    content,
+    otid,
+  } as StreamDelta;
+
+  const scope = {
+    agent_id: incoming.agentId,
+    conversation_id: incoming.conversationId,
+  };
+
+  // Emit to WebSocket controller
+  emitCanonicalMessageDelta(socket, runtime, delta, scope);
+
+  // Also emit to local TUI (if callback is registered)
+  emitLocalTuiStream(runtime, delta, scope);
 }
 
 export function emitQueueUpdateIfOpen(
@@ -591,20 +594,19 @@ export function emitLoopErrorDelta(
     conversationId?: string | null;
   },
 ): void {
-  emitCanonicalMessageDelta(
-    socket,
-    runtime,
-    {
-      ...createLifecycleMessageBase("loop_error", params.runId),
-      message: params.message,
-      stop_reason: params.stopReason,
-      is_terminal: params.isTerminal,
-    } as StreamDelta,
-    {
-      agent_id: params.agentId,
-      conversation_id: params.conversationId,
-    },
-  );
+  const delta: StreamDelta = {
+    ...createLifecycleMessageBase("loop_error", params.runId),
+    message: params.message,
+    stop_reason: params.stopReason,
+    is_terminal: params.isTerminal,
+  } as StreamDelta;
+  const scope = {
+    agent_id: params.agentId,
+    conversation_id: params.conversationId,
+  };
+  emitCanonicalMessageDelta(socket, runtime, delta, scope);
+  // Also emit to local TUI (if callback is registered)
+  emitLocalTuiStream(runtime, delta, scope);
 }
 
 export function emitRetryDelta(
@@ -629,10 +631,13 @@ export function emitRetryDelta(
     max_attempts: params.maxAttempts,
     delay_ms: params.delayMs,
   };
-  emitCanonicalMessageDelta(socket, runtime, delta, {
+  const scope = {
     agent_id: params.agentId,
     conversation_id: params.conversationId,
-  });
+  };
+  emitCanonicalMessageDelta(socket, runtime, delta, scope);
+  // Also emit to local TUI (if callback is registered)
+  emitLocalTuiStream(runtime, delta, scope);
 }
 
 export function emitStatusDelta(
@@ -651,10 +656,13 @@ export function emitStatusDelta(
     message: params.message,
     level: params.level,
   };
-  emitCanonicalMessageDelta(socket, runtime, delta, {
+  const scope = {
     agent_id: params.agentId,
     conversation_id: params.conversationId,
-  });
+  };
+  emitCanonicalMessageDelta(socket, runtime, delta, scope);
+  // Also emit to local TUI (if callback is registered)
+  emitLocalTuiStream(runtime, delta, scope);
 }
 
 export function emitInterruptedStatusDelta(
@@ -694,4 +702,23 @@ export function emitStreamDelta(
     ...(subagentId ? { subagent_id: subagentId } : {}),
   };
   emitProtocolV2Message(socket, runtime, message, scope);
+}
+
+/**
+ * Emit a stream delta to the local TUI (if callback is registered).
+ * This makes remote/controller messages visible in the local transcript.
+ */
+export function emitLocalTuiStream(
+  runtime: RuntimeCarrier,
+  delta: StreamDelta,
+  scope?: {
+    agent_id?: string | null;
+    conversation_id?: string | null;
+  },
+): void {
+  const listener = getListenerRuntime(runtime);
+  if (!listener?.onLocalTuiStream) {
+    return;
+  }
+  listener.onLocalTuiStream(delta, scope ?? undefined);
 }

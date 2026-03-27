@@ -52,6 +52,7 @@ import {
   emitCanonicalMessageDelta,
   emitDeviceStatusIfOpen,
   emitInterruptedStatusDelta,
+  emitLocalTuiStream,
   emitLoopErrorDelta,
   emitLoopStatusUpdate,
   emitRetryDelta,
@@ -369,18 +370,17 @@ export async function handleIncomingMessage(
               chunk as unknown as Record<string, unknown>,
             );
             if (normalizedChunk) {
-              emitCanonicalMessageDelta(
-                socket,
-                runtime,
-                {
-                  ...normalizedChunk,
-                  type: "message",
-                } as StreamDelta,
-                {
-                  agent_id: agentId,
-                  conversation_id: conversationId,
-                },
-              );
+              const delta: StreamDelta = {
+                ...normalizedChunk,
+                type: "message",
+              } as StreamDelta;
+              const scope = {
+                agent_id: agentId,
+                conversation_id: conversationId,
+              };
+              emitCanonicalMessageDelta(socket, runtime, delta, scope);
+              // Also emit to local TUI (if callback is registered)
+              emitLocalTuiStream(runtime, delta, scope);
             }
           }
 
