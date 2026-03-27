@@ -261,6 +261,19 @@ export const CLI_FLAG_CATALOG = {
     },
   },
   "max-turns": { parser: { type: "string" }, mode: "headless" },
+  "local-server-port": {
+    parser: { type: "string" },
+    mode: "interactive",
+    help: {
+      argLabel: "<port>",
+      description: "Port for local TCP server (default: 9876)",
+    },
+  },
+  "local-server": {
+    parser: { type: "boolean" },
+    mode: "interactive",
+    help: { description: "Start local TCP server on launch" },
+  },
 } as const satisfies Record<string, CliFlagDefinition>;
 
 type CliFlagCatalog = typeof CLI_FLAG_CATALOG;

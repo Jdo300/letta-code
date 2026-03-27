@@ -498,6 +498,8 @@ async function main(): Promise<void> {
   const skillsDirectory = values.skills ?? undefined;
   const memfsFlag = values.memfs;
   const noMemfsFlag = values["no-memfs"];
+  const localServerPort = values["local-server-port"] ?? undefined;
+  const startLocalServer = values["local-server"] ?? false;
   const requestedMemoryPromptMode: "memfs" | "standard" | undefined = memfsFlag
     ? "memfs"
     : noMemfsFlag
@@ -961,6 +963,8 @@ async function main(): Promise<void> {
     skillsDirectory,
     fromAfFile,
     isRegistryImport,
+    localServerPort,
+    startLocalServer,
   }: {
     forceNew: boolean;
     initBlocks?: string[];
@@ -973,6 +977,8 @@ async function main(): Promise<void> {
     skillsDirectory?: string;
     fromAfFile?: string;
     isRegistryImport?: boolean;
+    localServerPort?: string;
+    startLocalServer?: boolean;
   }) {
     const [showKeybindingSetup, setShowKeybindingSetup] = useState<
       boolean | null
@@ -2065,6 +2071,8 @@ async function main(): Promise<void> {
         agentProvenance,
         releaseNotes,
         sessionContextReminderEnabled: !noSystemInfoReminderFlag,
+        localServerPort,
+        startLocalServer,
       });
     }
 
@@ -2085,6 +2093,8 @@ async function main(): Promise<void> {
       releaseNotes,
       updateNotification,
       sessionContextReminderEnabled: !noSystemInfoReminderFlag,
+      localServerPort,
+      startLocalServer,
     });
   }
 
@@ -2107,6 +2117,8 @@ async function main(): Promise<void> {
       skillsDirectory: skillsDirectory,
       fromAfFile: fromAfFile,
       isRegistryImport: isRegistryImport,
+      localServerPort: localServerPort,
+      startLocalServer: startLocalServer,
     }),
     {
       exitOnCtrlC: false, // We handle CTRL-C manually with double-press guard

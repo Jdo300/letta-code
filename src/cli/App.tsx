@@ -980,6 +980,8 @@ export default function App({
   releaseNotes = null,
   updateNotification = null,
   sessionContextReminderEnabled = true,
+  localServerPort,
+  startLocalServer = false,
 }: {
   agentId: string;
   agentState?: AgentState | null;
@@ -1002,11 +1004,43 @@ export default function App({
   releaseNotes?: string | null; // Markdown release notes to display above header
   updateNotification?: string | null; // Latest version when a significant auto-update was applied
   sessionContextReminderEnabled?: boolean;
+  localServerPort?: string;
+  startLocalServer?: boolean;
 }) {
   // Warm the model-access cache in the background so /model is fast on first open.
   useEffect(() => {
     prefetchAvailableModelHandles();
   }, []);
+
+  // Start local server on startup if requested via CLI flag
+  useEffect(() => {
+    if (!startLocalServer) return;
+
+    const startServer = async () => {
+      const { startLocalServer: startServer, setMessageHandler } = await import(
+        "./commands/local-server"
+      );
+      const port = localServerPort ? parseInt(localServerPort, 10) : 9876;
+
+      const result = await startServer({ port });
+      if (result.success) {
+        console.log(`[local-server] Started on port ${result.port}`);
+
+        // Set up message handler to process incoming messages as user input
+        setMessageHandler(async (message: string) => {
+          // TODO: Process incoming message as user input
+          // This will be wired up once we have the message processing flow
+          console.log(`[local-server] Received message: ${message.substring(0, 50)}...`);
+        });
+      } else {
+        console.error(`[local-server] Failed to start: ${result.error}`);
+      }
+    };
+
+    startServer().catch((err) => {
+      console.error(`[local-server] Error: ${err}`);
+    });
+  }, [startLocalServer, localServerPort]);
 
   // Track current agent (can change when swapping)
   const [agentId, setAgentId] = useState(initialAgentId);
