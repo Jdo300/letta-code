@@ -11766,7 +11766,6 @@ ${SYSTEM_REMINDER_CLOSE}
   const handleDenyCurrentRef = useRef<((reason: string) => Promise<void>) | null>(null);
   const handleCancelApprovalsRef = useRef<(() => void) | null>(null);
   const handleApproveAlwaysRef = useRef<(() => Promise<void>) | null>(null);
-  const handleQuestionSubmitRef = useRef<((response: string) => Promise<void>) | null>(null);
 
   useEffect(() => {
     handleApproveCurrentRef.current = handleApproveCurrent;
@@ -11780,9 +11779,6 @@ ${SYSTEM_REMINDER_CLOSE}
   useEffect(() => {
     handleApproveAlwaysRef.current = handleApproveAlways;
   }, [handleApproveAlways]);
-  useEffect(() => {
-    handleQuestionSubmitRef.current = handleQuestionSubmit;
-  }, [handleQuestionSubmit]);
 
   // Wire up local server UI command handler (after handlers are defined)
   useEffect(() => {
@@ -11869,11 +11865,8 @@ ${SYSTEM_REMINDER_CLOSE}
                   await handleDenyCurrentRef.current("Selected option 3");
                   return "Selected option 3: Deny";
                 default:
-                  if (handleQuestionSubmitRef.current) {
-                    await handleQuestionSubmitRef.current(selection.toString());
-                    return `Selected option ${selection}`;
-                  }
-                  return `Unknown selection: ${selection}`;
+                  // For question-based approvals, selections > 3 are not supported remotely
+                  return `Unknown selection: ${selection}. Only 1-3 are supported for remote control.`;
               }
             }
 
