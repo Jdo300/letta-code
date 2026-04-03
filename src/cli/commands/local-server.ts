@@ -132,14 +132,27 @@ function handleClient(socket: net.Socket): void {
       }
 
       if (trimmed.toUpperCase().startsWith("READ ")) {
-        const count = parseInt(trimmed.slice(5), 10);
-        if (!isNaN(count) && count > 0) {
+        const args = trimmed.slice(5).trim();
+        const count = parseInt(args, 10);
+        // Only treat as READ command if followed by a number
+        if (!isNaN(count) && count > 0 && /^\d+$/.test(args)) {
           const recent = outputBuffer.slice(-count);
           socket.write(`=== BUFFER (${recent.length} lines) ===\n`);
           socket.write(recent.join("\n") + "\n");
           socket.write(`=== END BUFFER ===\n`);
         } else {
-          socket.write(`Invalid READ command. Usage: READ <n>\n`);
+          // Not a valid READ command, pass to message handler
+          if (messageHandler) {
+            try {
+              socket.write(`[ACK] Processing: ${trimmed.substring(0, 50)}...\n`);
+              await messageHandler(trimmed);
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              socket.write(`[ERROR] ${errorMsg}\n`);
+            }
+          } else {
+            socket.write(`[ERROR] No message handler registered\n`);
+          }
         }
         continue;
       }
