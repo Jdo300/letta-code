@@ -11032,7 +11032,7 @@ ${SYSTEM_REMINDER_CLOSE}
     if (!startLocalServer) return;
 
     const wireUpHandler = async () => {
-      const { setMessageHandler, isLocalServerActive } = await import(
+      const { setMessageHandler, setUiCommandHandler, isLocalServerActive } = await import(
         "./commands/local-server"
       );
 
@@ -11045,6 +11045,7 @@ ${SYSTEM_REMINDER_CLOSE}
       }
 
       if (isLocalServerActive()) {
+        // Wire up message handler
         setMessageHandler(async (message: string) => {
           console.log(`[local-server] Processing message: ${message.substring(0, 50)}...`);
           try {
@@ -11056,7 +11057,116 @@ ${SYSTEM_REMINDER_CLOSE}
             console.error(`[local-server] Error processing message: ${err}`);
           }
         });
-        console.log(`[local-server] Message handler wired up`);
+
+        // Wire up UI command handler
+        setUiCommandHandler(async (command: string, args: string): Promise<string> => {
+          console.log(`[local-server] UI command: ${command} ${args}`);
+
+          switch (command) {
+            case "APPROVE": {
+              if (pendingApprovals.length === 0) {
+                return "No pending approvals";
+              }
+              if (isExecutingTool) {
+                return "Already executing a tool, please wait";
+              }
+              // Call handleApproveCurrent
+              await handleApproveCurrent();
+              return "Approved";
+            }
+
+            case "DENY": {
+              if (pendingApprovals.length === 0) {
+                return "No pending approvals";
+              }
+              // Call handleDenyCurrent with reason
+              await handleDenyCurrent(args || "Denied via remote command");
+              return `Denied: ${args || "No reason provided"}`;
+            }
+
+            case "CANCEL": {
+              handleCancelApprovals();
+              return "Cancelled all approvals";
+            }
+
+            case "SELECT": {
+              const selection = parseInt(args, 10);
+              if (isNaN(selection) || selection < 1) {
+                return `Invalid selection: ${args}. Use SELECT <n> where n is 1, 2, 3, etc.`;
+              }
+              // For approval options, we need to check what kind of approval it is
+              // and then call the appropriate handler
+              const currentApproval = pendingApprovals[approvalResults.length];
+              if (!currentApproval) {
+                return "No pending approval to select from";
+              }
+              // For most approvals, option 1 = approve, option 2 = approve always, option 3 = deny
+              // For questions, it's selecting an answer
+              // For now, we'll map: 1=approve, 2=approve always, 3=deny
+              switch (selection) {
+                case 1:
+                  await handleApproveCurrent();
+                  return "Selected option 1: Approve";
+                case 2:
+                  await handleApproveAlways();
+                  return "Selected option 2: Approve Always";
+                case 3:
+                  await handleDenyCurrent("Selected option 3");
+                  return "Selected option 3: Deny";
+                default:
+                  // For questions, try to submit the selection as a response
+                  if (handleQuestionSubmit) {
+                    await handleQuestionSubmit(selection.toString());
+                    return `Selected option ${selection}`;
+                  }
+                  return `Unknown selection: ${selection}`;
+              }
+            }
+
+            case "MODE": {
+              const mode = args.toLowerCase();
+              if (!["yolo", "plan", "default", "bypasspermissions"].includes(mode)) {
+                return `Invalid mode: ${mode}. Use: yolo, plan, default`;
+              }
+              permissionMode.setMode(mode as any);
+              return `Mode set to: ${mode}`;
+            }
+
+            case "KEY": {
+              const key = args.toUpperCase();
+              // Handle common key mappings
+              switch (key) {
+                case "ESCAPE":
+                case "ESC":
+                  // Cancel current approval or interrupt
+                  if (pendingApprovals.length > 0) {
+                    handleCancelApprovals();
+                    return "Escape: Cancelled approvals";
+                  }
+                  return "Escape: No dialog to cancel";
+
+                case "ENTER":
+                  // Approve current
+                  if (pendingApprovals.length > 0 && !isExecutingTool) {
+                    await handleApproveCurrent();
+                    return "Enter: Approved";
+                  }
+                  return "Enter: No approval pending";
+
+                case "TAB":
+                  return "Tab: Not implemented for remote control";
+
+                default:
+                  return `Unknown key: ${key}`;
+              }
+            }
+
+            default:
+              return `Unknown UI command: ${command}`;
+          }
+        });
+
+        console.log(`[local-server] Message and UI handlers wired up`);
       } else {
         console.error(`[local-server] Server not ready after ${maxAttempts} attempts`);
       }
@@ -11065,7 +11175,7 @@ ${SYSTEM_REMINDER_CLOSE}
     wireUpHandler().catch((err) => {
       console.error(`[local-server] Failed to wire up handler: ${err}`);
     });
-  }, [startLocalServer]);
+  }, [startLocalServer, pendingApprovals, approvalResults, isExecutingTool, handleApproveCurrent, handleDenyCurrent, handleCancelApprovals, handleApproveAlways, handleQuestionSubmit, permissionMode]);
 
   // Process queued messages when streaming ends.
   // QueueRuntime is authoritative: consumeItems drives the dequeue and fires

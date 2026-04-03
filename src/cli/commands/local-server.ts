@@ -6,6 +6,7 @@
  * 1. Accepts connections from local clients (like a skill)
  * 2. Receives text commands and processes them as user input
  * 3. Sends output back to connected clients
+ * 4. Supports UI commands for remote control
  */
 
 import * as net from "node:net";
@@ -24,14 +25,22 @@ let connectedClients: Set<net.Socket> = new Set();
 let outputBuffer: string[] = [];
 const MAX_BUFFER_LINES = 1000;
 
-// Callback to process incoming messages
+// Callbacks for different command types
 let messageHandler: ((message: string) => Promise<void>) | null = null;
+let uiCommandHandler: ((command: string, args: string) => Promise<string>) | null = null;
 
 /**
  * Register a callback to handle incoming messages
  */
 export function setMessageHandler(handler: (message: string) => Promise<void>): void {
   messageHandler = handler;
+}
+
+/**
+ * Register a callback to handle UI commands (SELECT, APPROVE, DENY, MODE, KEY, CANCEL)
+ */
+export function setUiCommandHandler(handler: (command: string, args: string) => Promise<string>): void {
+  uiCommandHandler = handler;
 }
 
 /**
@@ -96,8 +105,9 @@ function handleClient(socket: net.Socket): void {
 
   // Send welcome message
   socket.write(`Connected to Letta Code local server on ${hostname()}:${activePort}\n`);
-  socket.write(`Buffer has ${outputBuffer.length} lines. Send commands as plain text.\n`);
-  socket.write(`Special commands: READ, READ <n>, STATUS, EXIT\n`);
+  socket.write(`Buffer has ${outputBuffer.length} lines.\n`);
+  socket.write(`Commands: READ, READ <n>, STATUS, EXIT\n`);
+  socket.write(`UI: SELECT <n>, APPROVE, DENY [reason], CANCEL, MODE <mode>, KEY <key>\n`);
 
   let inputBuffer = "";
 
@@ -114,7 +124,6 @@ function handleClient(socket: net.Socket): void {
 
       // Handle special commands
       if (trimmed.toUpperCase() === "READ") {
-        // Send last 50 lines
         const recent = outputBuffer.slice(-50);
         socket.write(`=== BUFFER (${recent.length} lines) ===\n`);
         socket.write(recent.join("\n") + "\n");
@@ -145,6 +154,97 @@ function handleClient(socket: net.Socket): void {
       if (trimmed.toUpperCase() === "EXIT") {
         socket.write("Goodbye!\n");
         socket.end();
+        continue;
+      }
+
+      // UI Commands
+      const upperTrimmed = trimmed.toUpperCase();
+      
+      if (upperTrimmed === "APPROVE") {
+        if (uiCommandHandler) {
+          try {
+            const result = await uiCommandHandler("APPROVE", "");
+            socket.write(`[UI] ${result}\n`);
+          } catch (error) {
+            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+          }
+        } else {
+          socket.write(`[ERROR] No UI command handler registered\n`);
+        }
+        continue;
+      }
+
+      if (upperTrimmed.startsWith("DENY")) {
+        const reason = trimmed.slice(4).trim() || "No reason provided";
+        if (uiCommandHandler) {
+          try {
+            const result = await uiCommandHandler("DENY", reason);
+            socket.write(`[UI] ${result}\n`);
+          } catch (error) {
+            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+          }
+        } else {
+          socket.write(`[ERROR] No UI command handler registered\n`);
+        }
+        continue;
+      }
+
+      if (upperTrimmed.startsWith("SELECT ")) {
+        const selection = trimmed.slice(7).trim();
+        if (uiCommandHandler) {
+          try {
+            const result = await uiCommandHandler("SELECT", selection);
+            socket.write(`[UI] ${result}\n`);
+          } catch (error) {
+            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+          }
+        } else {
+          socket.write(`[ERROR] No UI command handler registered\n`);
+        }
+        continue;
+      }
+
+      if (upperTrimmed === "CANCEL") {
+        if (uiCommandHandler) {
+          try {
+            const result = await uiCommandHandler("CANCEL", "");
+            socket.write(`[UI] ${result}\n`);
+          } catch (error) {
+            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+          }
+        } else {
+          socket.write(`[ERROR] No UI command handler registered\n`);
+        }
+        continue;
+      }
+
+      if (upperTrimmed.startsWith("MODE ")) {
+        const mode = trimmed.slice(5).trim().toLowerCase();
+        if (uiCommandHandler) {
+          try {
+            const result = await uiCommandHandler("MODE", mode);
+            socket.write(`[UI] ${result}\n`);
+          } catch (error) {
+            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+          }
+        } else {
+          socket.write(`[ERROR] No UI command handler registered\n`);
+        }
+        continue;
+      }
+
+      if (upperTrimmed.startsWith("KEY ")) {
+        const key = trimmed.slice(4).trim();
+        if (uiCommandHandler) {
+          try {
+            const result = await uiCommandHandler("KEY", key);
+            socket.write(`[UI] ${result}\n`);
+          } catch (error) {
+            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+          }
+        } else {
+          socket.write(`[ERROR] No UI command handler registered\n`);
+        }
         continue;
       }
 
@@ -266,10 +366,18 @@ export async function handleLocalServer(
       "  telnet localhost 9876",
       "",
       "Commands:",
-      "  READ        - Get last 50 lines from buffer",
-      "  READ <n>    - Get last n lines from buffer",
-      "  STATUS      - Show server status",
-      "  EXIT        - Disconnect",
+      "  READ            - Get last 50 lines from buffer",
+      "  READ <n>        - Get last n lines from buffer",
+      "  STATUS          - Show server status",
+      "  EXIT            - Disconnect",
+      "",
+      "UI Commands:",
+      "  SELECT <n>      - Select option n from current approval/poll",
+      "  APPROVE         - Approve current approval",
+      "  DENY [reason]   - Deny current approval",
+      "  CANCEL          - Cancel current dialog (Escape)",
+      "  MODE <mode>     - Switch mode (yolo, plan, default)",
+      "  KEY <key>       - Send a keypress (Escape, Enter, Tab, etc.)",
       "",
       "Any other text is sent as a message to the agent.",
     ].join("\n");
@@ -291,6 +399,7 @@ export async function handleLocalServer(
       "",
       `Send text to process as user input.`,
       `Use READ to get output buffer.`,
+      `Use SELECT, APPROVE, DENY for UI control.`,
     ].join("\n");
   } else {
     return `Failed to start local server: ${result.error}`;

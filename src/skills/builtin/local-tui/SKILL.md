@@ -12,6 +12,7 @@ This skill enables you to connect to a Letta Code instance that's already runnin
 - You need to send a message to an agent running in a Letta Code TUI session
 - You want to check the status or output of a remote Letta Code instance
 - You need to control an agent from another machine or another agent
+- You need to respond to approval dialogs or switch modes remotely
 
 ## How It Works
 
@@ -20,6 +21,7 @@ Letta Code can start a local TCP server with the `--local-server` flag. This ser
 2. Accepts connections from TCP clients
 3. Processes incoming text as user input to the agent
 4. Maintains an output buffer that clients can read
+5. Handles UI commands for remote control
 
 ## Starting the Local Server
 
@@ -62,31 +64,67 @@ socat - TCP:localhost:9876
 
 Once connected, you can:
 
-1. **Send a message** - Just type text and press Enter. The server will process it as user input.
+### Regular Messages
+Send any text to process as user input to the agent.
 
-2. **Read the output buffer** - Send `READ` to get the last 50 lines, or `READ <n>` for the last n lines.
+### Read Commands
+- `READ` - Get last 50 lines from buffer
+- `READ <n>` - Get last n lines from buffer
 
-3. **Check server status** - Send `STATUS` to see server info.
+### Status
+- `STATUS` - Show server status
 
-4. **Disconnect** - Send `EXIT` or close the connection.
+### Disconnect
+- `EXIT` - Close the connection
 
-### Example Session
+## UI Commands
+
+For remote control of the TUI:
+
+### Approval Handling
+- `APPROVE` - Approve the current pending approval
+- `DENY [reason]` - Deny the current approval with optional reason
+- `CANCEL` - Cancel all pending approvals (like pressing Escape)
+
+### Selection
+- `SELECT <n>` - Select option n from the current approval:
+  - `SELECT 1` - Approve
+  - `SELECT 2` - Approve Always (remember for this project)
+  - `SELECT 3` - Deny
+  - Higher numbers for questions with multiple options
+
+### Mode Switching
+- `MODE yolo` - Switch to YOLO mode (auto-approve all)
+- `MODE plan` - Switch to plan mode
+- `MODE default` - Switch to default permission mode
+
+### Key Sending
+- `KEY Escape` - Send Escape key (cancel current dialog)
+- `KEY Enter` - Send Enter key (approve current)
+
+## Example Session
 
 ```
 $ nc localhost 9876
 Connected to Letta Code local server on hostname:9876
-Buffer has 0 lines. Send commands as plain text.
-Special commands: READ, READ <n>, STATUS, EXIT
+Buffer has 0 lines.
+Commands: READ, READ <n>, STATUS, EXIT
+UI: SELECT <n>, APPROVE, DENY [reason], CANCEL, MODE <mode>, KEY <key>
 Hello from a TCP client!
 [ACK] Processing: Hello from a TCP client!...
+2026-04-03T12:00:00.000Z [OUTPUT] [USER] Hello from a TCP client!
+2026-04-03T12:00:05.000Z [OUTPUT] [ASSISTANT] Hello! How can I help you today?
 READ 10
-=== BUFFER (10 lines) ===
-...output lines...
+=== BUFFER (2 lines) ===
+2026-04-03T12:00:00.000Z [OUTPUT] [USER] Hello from a TCP client!
+2026-04-03T12:00:05.000Z [OUTPUT] [ASSISTANT] Hello! How can I help you today?
 === END BUFFER ===
+MODE yolo
+[UI] Mode set to: yolo
 STATUS
 Server: hostname:9876
 Connected clients: 1
-Buffer lines: 42
+Buffer lines: 2
 EXIT
 Goodbye!
 ```
