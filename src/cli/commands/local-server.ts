@@ -208,8 +208,12 @@ function handleClient(socket: net.Socket): void {
         continue;
       }
 
-      if (upperTrimmed.startsWith("SELECT ")) {
-        const selection = trimmed.slice(7).trim();
+      if (upperTrimmed === "SELECT" || upperTrimmed.startsWith("SELECT ")) {
+        const selection = trimmed.slice(6).trim();
+        if (!selection) {
+          socket.write(`[ERROR] SELECT requires a number. Usage: SELECT <n>\n`);
+          continue;
+        }
         if (uiCommandHandler) {
           try {
             const result = await uiCommandHandler("SELECT", selection);
@@ -237,8 +241,12 @@ function handleClient(socket: net.Socket): void {
         continue;
       }
 
-      if (upperTrimmed.startsWith("MODE ")) {
-        const mode = trimmed.slice(5).trim().toLowerCase();
+      if (upperTrimmed === "MODE" || upperTrimmed.startsWith("MODE ")) {
+        const mode = trimmed.slice(4).trim().toLowerCase();
+        if (!mode) {
+          socket.write(`[ERROR] MODE requires a mode name. Usage: MODE <yolo|plan|default>\n`);
+          continue;
+        }
         if (uiCommandHandler) {
           try {
             const result = await uiCommandHandler("MODE", mode);
@@ -252,8 +260,12 @@ function handleClient(socket: net.Socket): void {
         continue;
       }
 
-      if (upperTrimmed.startsWith("KEY ")) {
+      if (upperTrimmed === "KEY" || upperTrimmed.startsWith("KEY ")) {
         const key = trimmed.slice(4).trim();
+        if (!key) {
+          socket.write(`[ERROR] KEY requires a key name. Usage: KEY <Escape|Enter|Tab>\n`);
+          continue;
+        }
         if (uiCommandHandler) {
           try {
             const result = await uiCommandHandler("KEY", key);
