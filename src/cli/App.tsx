@@ -49,6 +49,7 @@ import { getClient, getServerUrl } from "../agent/client";
 import { getCurrentAgentId, setCurrentAgentId } from "../agent/context";
 import { type AgentProvenance, createAgent } from "../agent/create";
 import { getLettaCodeHeaders } from "../agent/http-headers";
+import { appendOutput, isLocalServerActive } from "./commands/local-server";
 import { ISOLATED_BLOCK_LABELS } from "../agent/memory";
 import {
   ensureMemoryFilesystemDirs,
@@ -4784,6 +4785,26 @@ export default function App({
                 const transcriptLines = toLines(buffersRef.current).slice(
                   transcriptTurnStartLineIndex,
                 );
+
+                // Capture output to local server buffer if active
+                if (isLocalServerActive()) {
+                  for (const line of transcriptLines) {
+                    if (line.kind === "assistant" && "text" in line && line.text) {
+                      appendOutput(`[ASSISTANT] ${line.text}`, false);
+                    } else if (line.kind === "tool_call" && "name" in line) {
+                      const toolName = (line as any).name || "unknown";
+                      const phase = (line as any).phase || "unknown";
+                      appendOutput(`[TOOL] ${toolName} (${phase})`, false);
+                    } else if (line.kind === "user" && "text" in line && line.text) {
+                      appendOutput(`[USER] ${line.text}`, false);
+                    } else if (line.kind === "status" && "lines" in line) {
+                      const statusLines = (line as any).lines || [];
+                      for (const statusLine of statusLines) {
+                        appendOutput(`[STATUS] ${statusLine}`, false);
+                      }
+                    }
+                  }
+                }
                 await appendTranscriptDeltaJsonl(
                   agentIdRef.current,
                   conversationIdRef.current,
