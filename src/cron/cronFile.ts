@@ -15,6 +15,7 @@ import {
   readFileSync,
   renameSync,
   rmdirSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -179,7 +180,7 @@ function isLockStale(lockDir: string): boolean {
 
 function stealLock(lockDir: string): void {
   try {
-    rmdirSync(lockDir, { recursive: true } as Parameters<typeof rmdirSync>[1]);
+    rmSync(lockDir, { recursive: true, force: true });
   } catch {
     // Best effort
   }
@@ -214,9 +215,7 @@ export function acquireLock(): LockHandle {
             // Verify we still own it before releasing
             const current = readLockOwner(lockDir);
             if (current && current.token === token) {
-              rmdirSync(lockDir, { recursive: true } as Parameters<
-                typeof rmdirSync
-              >[1]);
+              rmSync(lockDir, { recursive: true, force: true });
             }
           } catch {
             // Best effort

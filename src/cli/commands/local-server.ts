@@ -19,7 +19,7 @@ interface LocalServerOptions {
 // Active server state
 let activeServer: net.Server | null = null;
 let activePort: number | null = null;
-let connectedClients: Set<net.Socket> = new Set();
+const connectedClients: Set<net.Socket> = new Set();
 
 // Output buffer for clients to read
 let outputBuffer: string[] = [];
@@ -27,19 +27,25 @@ const MAX_BUFFER_LINES = 1000;
 
 // Callbacks for different command types
 let messageHandler: ((message: string) => Promise<void>) | null = null;
-let uiCommandHandler: ((command: string, args: string) => Promise<string>) | null = null;
+let uiCommandHandler:
+  | ((command: string, args: string) => Promise<string>)
+  | null = null;
 
 /**
  * Register a callback to handle incoming messages
  */
-export function setMessageHandler(handler: (message: string) => Promise<void>): void {
+export function setMessageHandler(
+  handler: (message: string) => Promise<void>,
+): void {
   messageHandler = handler;
 }
 
 /**
  * Register a callback to handle UI commands (SELECT, APPROVE, DENY, MODE, KEY, CANCEL)
  */
-export function setUiCommandHandler(handler: (command: string, args: string) => Promise<string>): void {
+export function setUiCommandHandler(
+  handler: (command: string, args: string) => Promise<string>,
+): void {
   uiCommandHandler = handler;
 }
 
@@ -104,12 +110,17 @@ function handleClient(socket: net.Socket): void {
   console.log(`[local-server] Client connected: ${clientAddr}`);
 
   // Send welcome message
-  socket.write(`Connected to Letta Code local server on ${hostname()}:${activePort}\n`);
+  socket.write(
+    `Connected to Letta Code local server on ${hostname()}:${activePort}\n`,
+  );
   socket.write(`Buffer has ${outputBuffer.length} lines.\n`);
   socket.write(`Commands: READ, READ <n>, STATUS, EXIT\n`);
-  socket.write(`UI: SELECT <n>, APPROVE, DENY [reason], CANCEL, MODE <mode>, KEY <key>\n`);
+  socket.write(
+    `UI: SELECT <n>, APPROVE, DENY [reason], CANCEL, MODE <mode>, KEY <key>\n`,
+  );
 
   let inputBuffer = "";
+  let pendingMessageLines: string[] = []; // Accumulate non-command lines for single submission
 
   socket.on("data", async (data) => {
     inputBuffer += data.toString();
@@ -148,16 +159,21 @@ function handleClient(socket: net.Socket): void {
             socket.write(`=== END BUFFER ===\n`);
           } else {
             // Invalid: zero or negative
-            socket.write(`[ERROR] Invalid READ count: ${count}. Must be a positive number.\n`);
+            socket.write(
+              `[ERROR] Invalid READ count: ${count}. Must be a positive number.\n`,
+            );
           }
         } else {
           // Not a number - pass to message handler (e.g., "Read the file /etc/hosts")
           if (messageHandler) {
             try {
-              socket.write(`[ACK] Processing: ${trimmed.substring(0, 50)}...\n`);
+              socket.write(
+                `[ACK] Processing: ${trimmed.substring(0, 50)}...\n`,
+              );
               await messageHandler(trimmed);
             } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : String(error);
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
               socket.write(`[ERROR] ${errorMsg}\n`);
             }
           } else {
@@ -191,7 +207,9 @@ function handleClient(socket: net.Socket): void {
             const result = await uiCommandHandler("APPROVE", "");
             socket.write(`[UI] ${result}\n`);
           } catch (error) {
-            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+            socket.write(
+              `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
+            );
           }
         } else {
           socket.write(`[ERROR] No UI command handler registered\n`);
@@ -200,13 +218,16 @@ function handleClient(socket: net.Socket): void {
       }
 
       if (upperTrimmed.startsWith("DENY")) {
-        const reason = normalizedTrimmed.slice(4).trim() || "No reason provided";
+        const reason =
+          normalizedTrimmed.slice(4).trim() || "No reason provided";
         if (uiCommandHandler) {
           try {
             const result = await uiCommandHandler("DENY", reason);
             socket.write(`[UI] ${result}\n`);
           } catch (error) {
-            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+            socket.write(
+              `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
+            );
           }
         } else {
           socket.write(`[ERROR] No UI command handler registered\n`);
@@ -225,7 +246,9 @@ function handleClient(socket: net.Socket): void {
             const result = await uiCommandHandler("SELECT", selection);
             socket.write(`[UI] ${result}\n`);
           } catch (error) {
-            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+            socket.write(
+              `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
+            );
           }
         } else {
           socket.write(`[ERROR] No UI command handler registered\n`);
@@ -239,7 +262,9 @@ function handleClient(socket: net.Socket): void {
             const result = await uiCommandHandler("CANCEL", "");
             socket.write(`[UI] ${result}\n`);
           } catch (error) {
-            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+            socket.write(
+              `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
+            );
           }
         } else {
           socket.write(`[ERROR] No UI command handler registered\n`);
@@ -250,7 +275,9 @@ function handleClient(socket: net.Socket): void {
       if (upperTrimmed === "MODE" || upperTrimmed.startsWith("MODE ")) {
         const mode = normalizedTrimmed.slice(4).trim().toLowerCase();
         if (!mode) {
-          socket.write(`[ERROR] MODE requires a mode name. Usage: MODE <yolo|plan|default>\n`);
+          socket.write(
+            `[ERROR] MODE requires a mode name. Usage: MODE <yolo|plan|default>\n`,
+          );
           continue;
         }
         if (uiCommandHandler) {
@@ -258,7 +285,9 @@ function handleClient(socket: net.Socket): void {
             const result = await uiCommandHandler("MODE", mode);
             socket.write(`[UI] ${result}\n`);
           } catch (error) {
-            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+            socket.write(
+              `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
+            );
           }
         } else {
           socket.write(`[ERROR] No UI command handler registered\n`);
@@ -269,7 +298,9 @@ function handleClient(socket: net.Socket): void {
       if (upperTrimmed === "KEY" || upperTrimmed.startsWith("KEY ")) {
         const key = normalizedTrimmed.slice(4).trim();
         if (!key) {
-          socket.write(`[ERROR] KEY requires a key name. Usage: KEY <Escape|Enter|Tab>\n`);
+          socket.write(
+            `[ERROR] KEY requires a key name. Usage: KEY <Escape|Enter|Tab>\n`,
+          );
           continue;
         }
         if (uiCommandHandler) {
@@ -277,7 +308,9 @@ function handleClient(socket: net.Socket): void {
             const result = await uiCommandHandler("KEY", key);
             socket.write(`[UI] ${result}\n`);
           } catch (error) {
-            socket.write(`[ERROR] ${error instanceof Error ? error.message : String(error)}\n`);
+            socket.write(
+              `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
+            );
           }
         } else {
           socket.write(`[ERROR] No UI command handler registered\n`);
@@ -285,24 +318,46 @@ function handleClient(socket: net.Socket): void {
         continue;
       }
 
-      // Regular message - pass to handler
-      if (messageHandler) {
-        try {
-          socket.write(`[ACK] Processing: ${trimmed.substring(0, 50)}...\n`);
-          await messageHandler(trimmed);
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          socket.write(`[ERROR] ${errorMsg}\n`);
-        }
-      } else {
-        socket.write(`[ERROR] No message handler registered\n`);
+      // Regular message - accumulate lines for single submission on connection close
+      if (pendingMessageLines.length === 0) {
+        // ACK on first content line so sender knows we received it
+        socket.write(`[ACK] Processing: ${trimmed.substring(0, 50)}...\n`);
       }
+      pendingMessageLines.push(trimmed);
     }
   });
 
-  socket.on("close", () => {
+  socket.on("close", async () => {
     connectedClients.delete(socket);
     console.log(`[local-server] Client disconnected: ${clientAddr}`);
+
+    // Flush any remaining partial line into pending
+    if (inputBuffer.trim()) {
+      pendingMessageLines.push(inputBuffer.trim());
+      inputBuffer = "";
+    }
+
+    // Submit accumulated message lines as a single message
+    if (pendingMessageLines.length > 0) {
+      const fullMessage = pendingMessageLines.join("\n");
+      pendingMessageLines = [];
+      if (messageHandler) {
+        try {
+          console.log(
+            `[local-server] Submitting message (${fullMessage.length} chars)`,
+          );
+          await messageHandler(fullMessage);
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          console.log(`[local-server] Message submission error: ${errorMsg}`);
+        }
+      } else {
+        console.log(
+          `[local-server] Message not submitted: no handler registered`,
+        );
+      }
+    }
   });
 
   socket.on("error", (err) => {
@@ -316,7 +371,8 @@ function handleClient(socket: net.Socket): void {
  */
 async function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const tester = net.createServer()
+    const tester = net
+      .createServer()
       .once("error", () => resolve(false))
       .once("listening", () => {
         tester.once("close", () => resolve(true)).close();
@@ -328,7 +384,10 @@ async function isPortAvailable(port: number): Promise<boolean> {
 /**
  * Find an available port starting from the given port
  */
-async function findAvailablePort(startPort: number, maxAttempts = 10): Promise<number | null> {
+async function findAvailablePort(
+  startPort: number,
+  maxAttempts = 10,
+): Promise<number | null> {
   for (let port = startPort; port < startPort + maxAttempts; port++) {
     if (await isPortAvailable(port)) {
       return port;
@@ -342,14 +401,18 @@ async function findAvailablePort(startPort: number, maxAttempts = 10): Promise<n
  */
 export async function startLocalServer(
   opts: LocalServerOptions = {},
-  onStatusChange?: (status: "started" | "stopped" | "error", port?: number, error?: string) => void,
+  onStatusChange?: (
+    status: "started" | "stopped" | "error",
+    port?: number,
+    error?: string,
+  ) => void,
 ): Promise<{ success: boolean; port?: number; error?: string }> {
   if (activeServer) {
     return { success: false, error: "Server already running" };
   }
 
   const requestedPort = opts.port || 9876;
-  
+
   // Check if requested port is available
   const port = await findAvailablePort(requestedPort);
   if (!port) {
@@ -357,9 +420,11 @@ export async function startLocalServer(
     onStatusChange?.("error", undefined, error);
     return { success: false, error };
   }
-  
+
   if (port !== requestedPort) {
-    console.log(`[local-server] Port ${requestedPort} in use, using port ${port}`);
+    console.log(
+      `[local-server] Port ${requestedPort} in use, using port ${port}`,
+    );
   }
 
   return new Promise((resolve) => {
