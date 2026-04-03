@@ -11766,6 +11766,7 @@ ${SYSTEM_REMINDER_CLOSE}
   const handleDenyCurrentRef = useRef<((reason: string) => Promise<void>) | null>(null);
   const handleCancelApprovalsRef = useRef<(() => void) | null>(null);
   const handleApproveAlwaysRef = useRef<(() => Promise<void>) | null>(null);
+  const setUiPermissionModeRef = useRef<((mode: PermissionMode) => void) | null>(null);
 
   useEffect(() => {
     handleApproveCurrentRef.current = handleApproveCurrent;
@@ -11779,6 +11780,9 @@ ${SYSTEM_REMINDER_CLOSE}
   useEffect(() => {
     handleApproveAlwaysRef.current = handleApproveAlways;
   }, [handleApproveAlways]);
+  useEffect(() => {
+    setUiPermissionModeRef.current = setUiPermissionMode;
+  }, [setUiPermissionMode]);
 
   // Wire up local server UI command handler (after handlers are defined)
   useEffect(() => {
@@ -11875,7 +11879,11 @@ ${SYSTEM_REMINDER_CLOSE}
               if (!["yolo", "plan", "default", "bypasspermissions"].includes(mode)) {
                 return `Invalid mode: ${mode}. Use: yolo, plan, default`;
               }
-              permissionMode.setMode(mode as any);
+              // Update both the internal state and React state
+              permissionMode.setMode(mode as PermissionMode);
+              if (setUiPermissionModeRef.current) {
+                setUiPermissionModeRef.current(mode as PermissionMode);
+              }
               return `Mode set to: ${mode}`;
             }
 
@@ -11920,7 +11928,7 @@ ${SYSTEM_REMINDER_CLOSE}
     wireUpUiHandler().catch((err) => {
       console.error(`[local-server] Failed to wire up UI handler: ${err}`);
     });
-  }, [startLocalServer, pendingApprovals, approvalResults, isExecutingTool]);
+  }, [startLocalServer, pendingApprovals, approvalResults, isExecutingTool, setUiPermissionMode]);
 
   const handleModelSelect = useCallback(
     async (
