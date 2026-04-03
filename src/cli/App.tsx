@@ -10994,6 +10994,14 @@ ${SYSTEM_REMINDER_CLOSE}
         "./commands/local-server"
       );
 
+      // Wait for server to be ready (with timeout)
+      let attempts = 0;
+      const maxAttempts = 10;
+      while (!isLocalServerActive() && attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        attempts++;
+      }
+
       if (isLocalServerActive()) {
         setMessageHandler(async (message: string) => {
           console.log(`[local-server] Processing message: ${message.substring(0, 50)}...`);
@@ -11007,6 +11015,8 @@ ${SYSTEM_REMINDER_CLOSE}
           }
         });
         console.log(`[local-server] Message handler wired up`);
+      } else {
+        console.error(`[local-server] Server not ready after ${maxAttempts} attempts`);
       }
     };
 
