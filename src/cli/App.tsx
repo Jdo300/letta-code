@@ -4791,10 +4791,31 @@ export default function App({
                   for (const line of transcriptLines) {
                     if (line.kind === "assistant" && "text" in line && line.text) {
                       appendOutput(`[ASSISTANT] ${line.text}`, false);
-                    } else if (line.kind === "tool_call" && "name" in line) {
-                      const toolName = (line as any).name || "unknown";
-                      const phase = (line as any).phase || "unknown";
-                      appendOutput(`[TOOL] ${toolName} (${phase})`, false);
+                    } else if (line.kind === "tool_call") {
+                      const toolLine = line as any;
+                      const toolName = toolLine.name || "unknown";
+                      const phase = toolLine.phase || "unknown";
+                      // Capture tool call arguments
+                      if (toolLine.argsText) {
+                        appendOutput(`[TOOL_CALL] ${toolName}: ${toolLine.argsText.substring(0, 200)}`, false);
+                      } else {
+                        appendOutput(`[TOOL] ${toolName} (${phase})`, false);
+                      }
+                      // Capture tool result
+                      if (phase === "finished" && toolLine.resultText) {
+                        appendOutput(`[TOOL_RESULT] ${toolName}: ${toolLine.resultText.substring(0, 200)}`, false);
+                      }
+                      // Mark send_message as notification
+                      if (toolName === "send_message" && toolLine.argsText) {
+                        try {
+                          const args = JSON.parse(toolLine.argsText);
+                          if (args.message) {
+                            appendOutput(`[NOTIFY] ${args.message}`, true);
+                          }
+                        } catch {
+                          // Not valid JSON, skip
+                        }
+                      }
                     } else if (line.kind === "user" && "text" in line && line.text) {
                       appendOutput(`[USER] ${line.text}`, false);
                     } else if (line.kind === "status" && "lines" in line) {
