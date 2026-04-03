@@ -11782,7 +11782,6 @@ ${SYSTEM_REMINDER_CLOSE}
   }, [handleApproveAlways]);
   useEffect(() => {
     setUiPermissionModeRef.current = setUiPermissionMode;
-    console.log(`[local-server] setUiPermissionModeRef.current set to ${setUiPermissionMode ? 'function' : 'null'}`);
   }, [setUiPermissionMode]);
 
   // Wire up local server UI command handler (after handlers are defined)
@@ -11884,12 +11883,8 @@ ${SYSTEM_REMINDER_CLOSE}
               }
               // Update both the internal state and React state
               permissionMode.setMode(actualMode);
-              console.log(`[local-server] MODE: setUiPermissionModeRef.current = ${setUiPermissionModeRef.current ? 'set' : 'null'}`);
               if (setUiPermissionModeRef.current) {
                 setUiPermissionModeRef.current(actualMode);
-                console.log(`[local-server] MODE: called setUiPermissionMode(${actualMode})`);
-              } else {
-                console.log(`[local-server] MODE: setUiPermissionModeRef.current is null, cannot update React state`);
               }
               return `Mode set to: ${mode}${mode === "yolo" ? " (bypassPermissions)" : ""}`;
             }
