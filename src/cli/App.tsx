@@ -11762,11 +11762,11 @@ ${SYSTEM_REMINDER_CLOSE}
   }, [pendingApprovals, refreshDerived, queueApprovalResults]);
 
   // Refs for local server UI command handlers
-  const handleApproveCurrentRef = useRef(handleApproveCurrent);
-  const handleDenyCurrentRef = useRef(handleDenyCurrent);
-  const handleCancelApprovalsRef = useRef(handleCancelApprovals);
-  const handleApproveAlwaysRef = useRef(handleApproveAlways);
-  const handleQuestionSubmitRef = useRef(handleQuestionSubmit);
+  const handleApproveCurrentRef = useRef<((diffs?: Map<string, AdvancedDiffSuccess>) => Promise<void>) | null>(null);
+  const handleDenyCurrentRef = useRef<((reason: string) => Promise<void>) | null>(null);
+  const handleCancelApprovalsRef = useRef<(() => void) | null>(null);
+  const handleApproveAlwaysRef = useRef<(() => Promise<void>) | null>(null);
+  const handleQuestionSubmitRef = useRef<((response: string) => Promise<void>) | null>(null);
 
   useEffect(() => {
     handleApproveCurrentRef.current = handleApproveCurrent;
@@ -11814,6 +11814,9 @@ ${SYSTEM_REMINDER_CLOSE}
               if (isExecutingTool) {
                 return "Already executing a tool, please wait";
               }
+              if (!handleApproveCurrentRef.current) {
+                return "Handler not ready";
+              }
               await handleApproveCurrentRef.current();
               return "Approved";
             }
@@ -11822,11 +11825,17 @@ ${SYSTEM_REMINDER_CLOSE}
               if (pendingApprovals.length === 0) {
                 return "No pending approvals";
               }
+              if (!handleDenyCurrentRef.current) {
+                return "Handler not ready";
+              }
               await handleDenyCurrentRef.current(args || "Denied via remote command");
               return `Denied: ${args || "No reason provided"}`;
             }
 
             case "CANCEL": {
+              if (!handleCancelApprovalsRef.current) {
+                return "Handler not ready";
+              }
               handleCancelApprovalsRef.current();
               return "Cancelled all approvals";
             }
@@ -11842,12 +11851,21 @@ ${SYSTEM_REMINDER_CLOSE}
               }
               switch (selection) {
                 case 1:
+                  if (!handleApproveCurrentRef.current) {
+                    return "Handler not ready";
+                  }
                   await handleApproveCurrentRef.current();
                   return "Selected option 1: Approve";
                 case 2:
+                  if (!handleApproveAlwaysRef.current) {
+                    return "Handler not ready";
+                  }
                   await handleApproveAlwaysRef.current();
                   return "Selected option 2: Approve Always";
                 case 3:
+                  if (!handleDenyCurrentRef.current) {
+                    return "Handler not ready";
+                  }
                   await handleDenyCurrentRef.current("Selected option 3");
                   return "Selected option 3: Deny";
                 default:
@@ -11874,12 +11892,18 @@ ${SYSTEM_REMINDER_CLOSE}
                 case "ESCAPE":
                 case "ESC":
                   if (pendingApprovals.length > 0) {
+                    if (!handleCancelApprovalsRef.current) {
+                      return "Handler not ready";
+                    }
                     handleCancelApprovalsRef.current();
                     return "Escape: Cancelled approvals";
                   }
                   return "Escape: No dialog to cancel";
                 case "ENTER":
                   if (pendingApprovals.length > 0 && !isExecutingTool) {
+                    if (!handleApproveCurrentRef.current) {
+                      return "Handler not ready";
+                    }
                     await handleApproveCurrentRef.current();
                     return "Enter: Approved";
                   }
