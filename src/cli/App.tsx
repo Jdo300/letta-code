@@ -1016,30 +1016,19 @@ export default function App({
   useEffect(() => {
     if (!startLocalServer) return;
 
-    const startServer = async () => {
-      const { startLocalServer: startServer, setMessageHandler } = await import(
-        "./commands/local-server"
-      );
-      const port = localServerPort ? parseInt(localServerPort, 10) : 9876;
-
-      const result = await startServer({ port });
-      if (result.success) {
-        console.log(`[local-server] Started on port ${result.port}`);
-
-        // Set up message handler to process incoming messages as user input
-        setMessageHandler(async (message: string) => {
-          // TODO: Process incoming message as user input
-          // This will be wired up once we have the message processing flow
-          console.log(`[local-server] Received message: ${message.substring(0, 50)}...`);
-        });
-      } else {
-        console.error(`[local-server] Failed to start: ${result.error}`);
-      }
-    };
-
-    startServer().catch((err) => {
-      console.error(`[local-server] Error: ${err}`);
-    });
+    const port = localServerPort ? parseInt(localServerPort, 10) : 9876;
+    import("./commands/local-server")
+      .then(({ startLocalServer: startServer }) => startServer({ port }))
+      .then((result) => {
+        if (result.success) {
+          console.log(`[local-server] Started on port ${result.port}`);
+        } else {
+          console.error(`[local-server] Failed to start: ${result.error}`);
+        }
+      })
+      .catch((err) => {
+        console.error(`[local-server] Error: ${err}`);
+      });
   }, [startLocalServer, localServerPort]);
 
   // Track current agent (can change when swapping)
@@ -10995,6 +10984,36 @@ ${SYSTEM_REMINDER_CLOSE}
   useEffect(() => {
     onSubmitRef.current = onSubmit;
   }, [onSubmit]);
+
+  // Wire up local server message handler after onSubmitRef is available
+  useEffect(() => {
+    if (!startLocalServer) return;
+
+    const wireUpHandler = async () => {
+      const { setMessageHandler, isLocalServerActive } = await import(
+        "./commands/local-server"
+      );
+
+      if (isLocalServerActive()) {
+        setMessageHandler(async (message: string) => {
+          console.log(`[local-server] Processing message: ${message.substring(0, 50)}...`);
+          try {
+            const result = await onSubmitRef.current(message);
+            if (!result.submitted) {
+              console.log(`[local-server] Message not submitted`);
+            }
+          } catch (err) {
+            console.error(`[local-server] Error processing message: ${err}`);
+          }
+        });
+        console.log(`[local-server] Message handler wired up`);
+      }
+    };
+
+    wireUpHandler().catch((err) => {
+      console.error(`[local-server] Failed to wire up handler: ${err}`);
+    });
+  }, [startLocalServer]);
 
   // Process queued messages when streaming ends.
   // QueueRuntime is authoritative: consumeItems drives the dequeue and fires
