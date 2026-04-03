@@ -122,8 +122,12 @@ function handleClient(socket: net.Socket): void {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
+      // Normalize whitespace: replace tabs with spaces, collapse multiple spaces
+      const normalized = trimmed.replace(/\s+/g, " ");
+      const upperNormalized = normalized.toUpperCase();
+
       // Handle special commands
-      if (trimmed.toUpperCase() === "READ") {
+      if (upperNormalized === "READ") {
         const recent = outputBuffer.slice(-50);
         socket.write(`=== BUFFER (${recent.length} lines) ===\n`);
         socket.write(recent.join("\n") + "\n");
@@ -131,8 +135,8 @@ function handleClient(socket: net.Socket): void {
         continue;
       }
 
-      if (trimmed.toUpperCase().startsWith("READ ")) {
-        const args = trimmed.slice(5).trim();
+      if (upperNormalized.startsWith("READ ")) {
+        const args = normalized.slice(5).trim();
         const count = parseInt(args, 10);
         // Check if it's a valid number
         if (!isNaN(count)) {
@@ -177,9 +181,11 @@ function handleClient(socket: net.Socket): void {
       }
 
       // UI Commands
-      const upperTrimmed = trimmed.toUpperCase();
-      
-      if (upperTrimmed === "APPROVE") {
+      const upperTrimmed = upperNormalized;
+      const normalizedTrimmed = normalized;
+
+      if (upperTrimmed === "APPROVE" || upperTrimmed.startsWith("APPROVE ")) {
+        // APPROVE ignores extra arguments
         if (uiCommandHandler) {
           try {
             const result = await uiCommandHandler("APPROVE", "");
@@ -194,7 +200,7 @@ function handleClient(socket: net.Socket): void {
       }
 
       if (upperTrimmed.startsWith("DENY")) {
-        const reason = trimmed.slice(4).trim() || "No reason provided";
+        const reason = normalizedTrimmed.slice(4).trim() || "No reason provided";
         if (uiCommandHandler) {
           try {
             const result = await uiCommandHandler("DENY", reason);
@@ -209,7 +215,7 @@ function handleClient(socket: net.Socket): void {
       }
 
       if (upperTrimmed === "SELECT" || upperTrimmed.startsWith("SELECT ")) {
-        const selection = trimmed.slice(6).trim();
+        const selection = normalizedTrimmed.slice(6).trim();
         if (!selection) {
           socket.write(`[ERROR] SELECT requires a number. Usage: SELECT <n>\n`);
           continue;
@@ -242,7 +248,7 @@ function handleClient(socket: net.Socket): void {
       }
 
       if (upperTrimmed === "MODE" || upperTrimmed.startsWith("MODE ")) {
-        const mode = trimmed.slice(4).trim().toLowerCase();
+        const mode = normalizedTrimmed.slice(4).trim().toLowerCase();
         if (!mode) {
           socket.write(`[ERROR] MODE requires a mode name. Usage: MODE <yolo|plan|default>\n`);
           continue;
@@ -261,7 +267,7 @@ function handleClient(socket: net.Socket): void {
       }
 
       if (upperTrimmed === "KEY" || upperTrimmed.startsWith("KEY ")) {
-        const key = trimmed.slice(4).trim();
+        const key = normalizedTrimmed.slice(4).trim();
         if (!key) {
           socket.write(`[ERROR] KEY requires a key name. Usage: KEY <Escape|Enter|Tab>\n`);
           continue;
