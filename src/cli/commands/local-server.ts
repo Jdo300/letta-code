@@ -134,14 +134,20 @@ function handleClient(socket: net.Socket): void {
       if (trimmed.toUpperCase().startsWith("READ ")) {
         const args = trimmed.slice(5).trim();
         const count = parseInt(args, 10);
-        // Only treat as READ command if followed by a number
-        if (!isNaN(count) && count > 0 && /^\d+$/.test(args)) {
-          const recent = outputBuffer.slice(-count);
-          socket.write(`=== BUFFER (${recent.length} lines) ===\n`);
-          socket.write(recent.join("\n") + "\n");
-          socket.write(`=== END BUFFER ===\n`);
+        // Check if it's a valid number
+        if (!isNaN(count)) {
+          if (count > 0) {
+            // Valid READ command
+            const recent = outputBuffer.slice(-count);
+            socket.write(`=== BUFFER (${recent.length} lines) ===\n`);
+            socket.write(recent.join("\n") + "\n");
+            socket.write(`=== END BUFFER ===\n`);
+          } else {
+            // Invalid: zero or negative
+            socket.write(`[ERROR] Invalid READ count: ${count}. Must be a positive number.\n`);
+          }
         } else {
-          // Not a valid READ command, pass to message handler
+          // Not a number - pass to message handler (e.g., "Read the file /etc/hosts")
           if (messageHandler) {
             try {
               socket.write(`[ACK] Processing: ${trimmed.substring(0, 50)}...\n`);
