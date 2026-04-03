@@ -312,6 +312,32 @@ function handleClient(socket: net.Socket): void {
 }
 
 /**
+ * Check if a port is available
+ */
+async function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tester = net.createServer()
+      .once("error", () => resolve(false))
+      .once("listening", () => {
+        tester.once("close", () => resolve(true)).close();
+      })
+      .listen(port);
+  });
+}
+
+/**
+ * Find an available port starting from the given port
+ */
+async function findAvailablePort(startPort: number, maxAttempts = 10): Promise<number | null> {
+  for (let port = startPort; port < startPort + maxAttempts; port++) {
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+  }
+  return null;
+}
+
+/**
  * Start the local server
  */
 export async function startLocalServer(
@@ -322,7 +348,19 @@ export async function startLocalServer(
     return { success: false, error: "Server already running" };
   }
 
-  const port = opts.port || 9876;
+  const requestedPort = opts.port || 9876;
+  
+  // Check if requested port is available
+  const port = await findAvailablePort(requestedPort);
+  if (!port) {
+    const error = `No available port found (tried ${requestedPort}-${requestedPort + 9})`;
+    onStatusChange?.("error", undefined, error);
+    return { success: false, error };
+  }
+  
+  if (port !== requestedPort) {
+    console.log(`[local-server] Port ${requestedPort} in use, using port ${port}`);
+  }
 
   return new Promise((resolve) => {
     const server = net.createServer(handleClient);
