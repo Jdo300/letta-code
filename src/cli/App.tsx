@@ -11877,19 +11877,21 @@ ${SYSTEM_REMINDER_CLOSE}
 
             case "MODE": {
               const mode = args.toLowerCase();
+              // Map "yolo" to "bypassPermissions" (same as UI keyboard shortcut)
+              const actualMode: PermissionMode = mode === "yolo" ? "bypassPermissions" : mode as PermissionMode;
               if (!["yolo", "plan", "default", "bypasspermissions"].includes(mode)) {
                 return `Invalid mode: ${mode}. Use: yolo, plan, default`;
               }
               // Update both the internal state and React state
-              permissionMode.setMode(mode as PermissionMode);
+              permissionMode.setMode(actualMode);
               console.log(`[local-server] MODE: setUiPermissionModeRef.current = ${setUiPermissionModeRef.current ? 'set' : 'null'}`);
               if (setUiPermissionModeRef.current) {
-                setUiPermissionModeRef.current(mode as PermissionMode);
-                console.log(`[local-server] MODE: called setUiPermissionMode(${mode})`);
+                setUiPermissionModeRef.current(actualMode);
+                console.log(`[local-server] MODE: called setUiPermissionMode(${actualMode})`);
               } else {
                 console.log(`[local-server] MODE: setUiPermissionModeRef.current is null, cannot update React state`);
               }
-              return `Mode set to: ${mode}`;
+              return `Mode set to: ${mode}${mode === "yolo" ? " (bypassPermissions)" : ""}`;
             }
 
             case "KEY": {
